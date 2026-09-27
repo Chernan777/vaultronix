@@ -1,0 +1,41 @@
+exports.handler = async (event) => {
+  const headers = { 'Content-Type': 'application/json' };
+
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'method not allowed' }) };
+  }
+
+  const key = process.env.IMGBB_KEY;   // 👈 المفتاح يُقرأ من خزنة Netlify، ليس من الكود
+  if (!key) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'المفتاح غير مضبوط في Netlify' }) };
+  }
+
+  let data;
+  try { data = JSON.parse(event.body || '{}'); }
+  catch (e) { return { statusCode: 400, headers, body: JSON.stringify({ error: 'بيانات غير صالحة' }) }; }
+
+  const b64 = String(data.image || '');
+  if (!b64 || b64.length > 6000000) {
+    return { statusCode: 413, headers, body: JSON.stringify({ error: 'الصورة كبيرة جداً (الحد 4MB)' }) };
+  }
+
+  const body = new URLSearchParams();
+  body.append('key', key);
+  body.append('image', b64);
+  if (data.name) body.append('name', String(data.name).slice(0, 60));
+
+  try {
+    const res = await fetch('https://api.imgbb.com/1/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString()
+    });
+    const json = await res.json();
+    if (!json.success) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: json.error?.message || 'فشل الرفع' }) };
+    }
+    return { statusCode: 200, headers, body: JSON.stringify({ url: json.data.display_url || json.data.url }) };
+  } catch (e) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'خطأ شبكة' }) };
+  }
+};
