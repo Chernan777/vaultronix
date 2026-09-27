@@ -1667,24 +1667,7 @@ window.handleOrderSubmit = async function(e) {
             total, status: 'جديد', archived: false
         });
         await setDoc(doc(db,'tracking',orderId), { status:'جديد', city, phoneLast4: phone.slice(-4), updatedAt: new Date().toISOString() });
-        try {
-            await runTransaction(db, async (tx) => {
-                for (const item of cart) {
-                    const pref = doc(db,'products',item.id);
-                    const pdoc = await tx.get(pref);
-                    if (!pdoc.exists()) continue;
-                    const pd = pdoc.data();
-                    let newStock = pd.stock ?? 0;
-                    let newSizes = Array.isArray(pd.sizes) ? pd.sizes.map(s=>({...s})) : [];
-                    if (item.size && newSizes.length) {
-                        const idx = newSizes.findIndex(s=>s.name===item.size);
-                        if (idx>=0) newSizes[idx].stock = Math.max(0, (newSizes[idx].stock||0) - item.qty);
-                        newStock = Math.max(0, newStock - item.qty);
-                    } else newStock = Math.max(0, newStock - item.qty);
-                    tx.update(pref, { stock: newStock, sizes: newSizes });
-                }
-            });
-        } catch(te){ console.warn('نقص المخزون:', te); }
+
         lastOrderPhone = phone;
         showOrderSuccess(orderId);
     } catch(err){ console.error(err); showToast('حدث خطأ في الإرسال. حاول مرة أخرى.','error'); }
